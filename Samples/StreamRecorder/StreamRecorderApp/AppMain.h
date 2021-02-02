@@ -18,6 +18,9 @@
 #include "../Cannon/MixedReality.h"
 #include "../Cannon/TrackedHands.h"
 
+#include <winrt/Windows.Media.SpeechRecognition.h>
+#include <winrt/Windows.Foundation.Collections.h>
+
 #include "HeTHaTEyeStream.h"
 #include "SensorScenario.h"
 #include "VideoFrameProcessor.h"
@@ -43,6 +46,10 @@ public:
 
 	winrt::Windows::Foundation::IAsyncAction StartRecordingAsync();
 	void StopRecording();
+
+	void OnSpeechResultGenerated(
+		winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionSession sender,
+		winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionResultGeneratedEventArgs args);
 
 	static std::vector<ResearchModeSensorType> kEnabledRMStreamTypes;
 	static std::vector<StreamTypes> kEnabledStreamTypes;
@@ -74,7 +81,7 @@ private:
 	HeTHaTStreamVisualizer m_hethatStreamVis;
 
 	winrt::Windows::Storage::StorageFolder m_archiveFolder = nullptr;
-	std::unique_ptr<SensorScenario> m_scenario = nullptr;;
+	std::unique_ptr<SensorScenario> m_scenario = nullptr;
 
 	std::unique_ptr<VideoFrameProcessor> m_videoFrameProcessor = nullptr;
 	winrt::Windows::Foundation::IAsyncAction m_videoFrameProcessorOperation = nullptr;
@@ -84,4 +91,7 @@ private:
 	Timer m_frameDeltaTimer;
 	bool m_recording;
 	float m_currentHeight;
+
+
+	std::shared_ptr<winrt::Windows::Media::SpeechRecognition::SpeechRecognizer> m_speechRecognizer = nullptr;
 };

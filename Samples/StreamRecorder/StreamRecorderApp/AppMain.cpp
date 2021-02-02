@@ -16,6 +16,7 @@
 using namespace DirectX;
 using namespace std;
 using namespace winrt::Windows::Storage;
+using namespace winrt::Windows::Media::SpeechRecognition;
 
 enum class ButtonID
 {
@@ -61,6 +62,35 @@ AppMain::AppMain() :
 	m_mixedReality.EnableSurfaceMapping();
 	m_mixedReality.EnableQRCodeTracking();
 
+
+	// speech recognizer stuff
+	m_speechRecognizer = std::make_shared<SpeechRecognizer>();
+
+	winrt::Windows::Foundation::Collections::IVector<winrt::hstring> speechCommandList{ winrt::single_threaded_vector<winrt::hstring>() };
+	speechCommandList.Append(L"start");
+	speechCommandList.Append(L"stop");
+
+	auto spConstraint = SpeechRecognitionListConstraint(speechCommandList);
+
+	m_speechRecognizer->Constraints().Clear();
+	m_speechRecognizer->Constraints().Append(spConstraint);
+
+	auto compilationResult = co_await m_speechRecognizer->CompileConstraintsAsync();
+
+	if (compilationResult.GetResults().Status() == winrt::Windows::Media::SpeechRecognition::SpeechRecognitionResultStatus::Success)
+	{
+		try
+		{
+			auto recognitionStartResult = co_await m_speechRecognizer->ContinuousRecognitionSession().StartAsync();
+		}
+		catch (winrt::hresult_error const& ex)
+		{
+			OutputDebugStringW(L"Speech recognition failed to start.");
+		}
+	}
+
+	m_speechRecognizer->ContinuousRecognitionSession().ResultGenerated(AppMain::OnSpeechResultGenerated);
+
 	const float rootMenuHeight = 0.10f;
 	XMVECTOR mainButtonSize = XMVectorSet(0.04f, 0.04f, 0.015f, 0.0f);
 
@@ -90,6 +120,27 @@ AppMain::AppMain() :
 		else if (kEnabledStreamTypes[i] == StreamTypes::EYE)
 		{
 			m_mixedReality.EnableEyeTracking();
+		}
+	}
+}
+
+void AppMain::OnSpeechResultGenerated(
+	winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionSession sender,
+	winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionResultGeneratedEventArgs args)
+{
+	if ((args.Result().Confidence() == SpeechRecognitionConfidence::High) ||
+		(args.Result().Confidence() == SpeechRecognitionConfidence::Medium))
+	{
+		if (args.Result().Text() == L"start")
+		{
+			m_hethateyeStream.Clear();
+			m_hethatStreamVis.Update(m_hethateyeStream);
+			SetDateTimePath();
+			StartRecordingAsync();
+		}
+		else if (args.Result().Text() == L"stop")
+		{
+			StopRecording();
 		}
 	}
 }
