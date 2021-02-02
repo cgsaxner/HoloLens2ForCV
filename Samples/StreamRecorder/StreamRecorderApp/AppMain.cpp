@@ -17,6 +17,7 @@ using namespace DirectX;
 using namespace std;
 using namespace winrt::Windows::Storage;
 using namespace winrt::Windows::Media::SpeechRecognition;
+using namespace winrt::Windows::Media::SpeechSynthesis;
 
 enum class ButtonID
 {
@@ -35,7 +36,7 @@ enum class ButtonID
 	DEPTH_LONG_THROW
 }*/
 // Note that concurrent access to AHAT and Long Throw is currently not supported
-std::vector<ResearchModeSensorType> AppMain::kEnabledRMStreamTypes = { ResearchModeSensorType::DEPTH_LONG_THROW };
+std::vector<ResearchModeSensorType> AppMain::kEnabledRMStreamTypes = { ResearchModeSensorType::LEFT_FRONT, ResearchModeSensorType::RIGHT_FRONT };
 /* Supported not-ResearchMode streams:
 {
 	PV,  // RGB
@@ -61,35 +62,6 @@ AppMain::AppMain() :
 	// and to estimate where the user looks at, if eye gaze tracking is enabled
 	m_mixedReality.EnableSurfaceMapping();
 	m_mixedReality.EnableQRCodeTracking();
-
-
-	// speech recognizer stuff
-	m_speechRecognizer = std::make_shared<SpeechRecognizer>();
-
-	winrt::Windows::Foundation::Collections::IVector<winrt::hstring> speechCommandList{ winrt::single_threaded_vector<winrt::hstring>() };
-	speechCommandList.Append(L"start");
-	speechCommandList.Append(L"stop");
-
-	auto spConstraint = SpeechRecognitionListConstraint(speechCommandList);
-
-	m_speechRecognizer->Constraints().Clear();
-	m_speechRecognizer->Constraints().Append(spConstraint);
-
-	auto compilationResult = co_await m_speechRecognizer->CompileConstraintsAsync();
-
-	if (compilationResult.GetResults().Status() == winrt::Windows::Media::SpeechRecognition::SpeechRecognitionResultStatus::Success)
-	{
-		try
-		{
-			auto recognitionStartResult = co_await m_speechRecognizer->ContinuousRecognitionSession().StartAsync();
-		}
-		catch (winrt::hresult_error const& ex)
-		{
-			OutputDebugStringW(L"Speech recognition failed to start.");
-		}
-	}
-
-	m_speechRecognizer->ContinuousRecognitionSession().ResultGenerated(AppMain::OnSpeechResultGenerated);
 
 	const float rootMenuHeight = 0.10f;
 	XMVECTOR mainButtonSize = XMVectorSet(0.04f, 0.04f, 0.015f, 0.0f);
@@ -122,7 +94,18 @@ AppMain::AppMain() :
 			m_mixedReality.EnableEyeTracking();
 		}
 	}
+
+	//m_speechSynthesizer = std::make_shared<SpeechSynthesizer>();
+
+	InitializeSpeechRecognizer();
+
 }
+
+//winrt::Windows::Foundation::IAsyncAction AppMain::SaySentence(winrt::hstring sentence)
+//{
+//	auto speechSynthesisStream = co_await m_speechSynthesizer->SynthesizeTextToStreamAsync(sentence);
+//}
+
 
 void AppMain::OnSpeechResultGenerated(
 	winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionSession sender,
@@ -138,9 +121,94 @@ void AppMain::OnSpeechResultGenerated(
 			SetDateTimePath();
 			StartRecordingAsync();
 		}
-		else if (args.Result().Text() == L"stop")
+		else if (args.Result().Text() == L"finish")
 		{
 			StopRecording();
+		}
+	}
+}
+
+winrt::Windows::Foundation::IAsyncAction AppMain::InitializeSpeechRecognizer()
+{
+	OutputDebugStringW(L"Starting speech recognizer...\n");
+	try
+	{
+		m_speechRecognizer = SpeechRecognizer();
+	}
+	catch (winrt::hresult_error const& ex)
+	{
+		OutputDebugStringW(L"Speech recognizer failed to start.\n");
+		auto message = ex.message();
+		OutputDebugStringW(message.c_str());
+	}
+	
+
+	if (!m_speechRecognizer)
+	{
+		OutputDebugStringW(L"Did not initilaize speech recognizer!\n");
+		return;
+	}
+	OutputDebugStringW(L"Done. Registering event handler...\n");
+	m_speechRecognizerResultEventToken = m_speechRecognizer.ContinuousRecognitionSession().ResultGenerated(
+		[&](const SpeechContinuousRecognitionSession& sender, SpeechContinuousRecognitionResultGeneratedEventArgs const& args)
+		{
+			auto conf = args.Result().Confidence();
+			auto hs = args.Result().Text();
+
+			OutputDebugStringW(hs.c_str());
+			OutputDebugStringW(L"\n");
+
+			if ((conf == SpeechRecognitionConfidence::High) ||
+				(conf == SpeechRecognitionConfidence::Medium))
+			{
+				if (hs == L"start")
+				{
+					if (IsVideoFrameProcessorWantedAndReady() && !m_recording)
+					{
+						m_hethateyeStream.Clear();
+						m_hethatStreamVis.Update(m_hethateyeStream);
+						SetDateTimePath();
+						StartRecordingAsync();
+					}
+				}
+				else if (hs == L"finish")
+				{
+					StopRecording();
+				}
+			}
+		});
+
+	OutputDebugStringW(L"Done. Adding the commands...\n");
+	std::vector<winrt::hstring> speechCommandList;
+	speechCommandList.push_back(L"start");
+	speechCommandList.push_back(L"finish");
+
+	auto spConstraint = SpeechRecognitionListConstraint(speechCommandList);
+
+	OutputDebugStringW(L"Done. Compiling the constraints...\n");
+
+	m_speechRecognizer.Constraints().Clear();
+	m_speechRecognizer.Constraints().Append(spConstraint);
+
+	auto compilationResult = co_await m_speechRecognizer.CompileConstraintsAsync();
+
+	OutputDebugStringW(L"Done.\n");
+
+	if (compilationResult.Status() == winrt::Windows::Media::SpeechRecognition::SpeechRecognitionResultStatus::Success)
+	{
+		OutputDebugStringW(L"Compilation status == Sucess.\n");
+		try
+		{
+			OutputDebugStringW(L"Starting the recognition...\n");
+			co_await m_speechRecognizer.ContinuousRecognitionSession().StartAsync();
+			OutputDebugStringW(L"Done.\n");
+
+		}
+		catch (winrt::hresult_error const& ex)
+		{
+			OutputDebugStringW(L"Speech recognition failed to start.\n");
+			auto message = ex.message();
+			OutputDebugStringW(message.c_str());
 		}
 	}
 }
@@ -294,6 +362,7 @@ bool AppMain::SetDateTimePath()
 
 winrt::Windows::Foundation::IAsyncAction AppMain::StartRecordingAsync()
 {
+	OutputDebugStringW(L"Starting recording.\n");
 	StorageFolder localFolder = ApplicationData::Current().LocalFolder();
 	auto archiveSourceFolder = co_await localFolder.CreateFolderAsync(
 																	L"archiveSource",
@@ -317,6 +386,7 @@ winrt::Windows::Foundation::IAsyncAction AppMain::StartRecordingAsync()
 
 void AppMain::StopRecording()
 {
+	OutputDebugStringW(L"Stopping recording.\n");
 	if (m_videoFrameProcessor)
 	{
 		m_videoFrameProcessor->StopRecording();

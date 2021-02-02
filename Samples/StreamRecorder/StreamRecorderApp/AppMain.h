@@ -19,6 +19,7 @@
 #include "../Cannon/TrackedHands.h"
 
 #include <winrt/Windows.Media.SpeechRecognition.h>
+#include <winrt/Windows.Media.SpeechSynthesis.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
 #include "HeTHaTEyeStream.h"
@@ -47,9 +48,13 @@ public:
 	winrt::Windows::Foundation::IAsyncAction StartRecordingAsync();
 	void StopRecording();
 
+	winrt::Windows::Foundation::IAsyncAction InitializeSpeechRecognizer();
+
 	void OnSpeechResultGenerated(
 		winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionSession sender,
 		winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionResultGeneratedEventArgs args);
+
+	//winrt::Windows::Foundation::IAsyncAction SaySentence(winrt::hstring sentence);
 
 	static std::vector<ResearchModeSensorType> kEnabledRMStreamTypes;
 	static std::vector<StreamTypes> kEnabledStreamTypes;
@@ -93,5 +98,8 @@ private:
 	float m_currentHeight;
 
 
-	std::shared_ptr<winrt::Windows::Media::SpeechRecognition::SpeechRecognizer> m_speechRecognizer = nullptr;
+	winrt::Windows::Media::SpeechRecognition::SpeechRecognizer m_speechRecognizer{nullptr};
+
+	winrt::event_token m_speechRecognizerResultEventToken;
+	//std::shared_ptr<winrt::Windows::Media::SpeechSynthesis::SpeechSynthesizer> m_speechSynthesizer = nullptr;
 };

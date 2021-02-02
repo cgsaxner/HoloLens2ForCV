@@ -95,9 +95,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dev_portal_address", default="127.0.0.1:10080",
                         help="The IP address for the HoloLens Device Portal")
-    parser.add_argument("--dev_portal_username", required=True,
+    parser.add_argument("--dev_portal_username", default="ICG",
                         help="The username for the HoloLens Device Portal")
-    parser.add_argument("--dev_portal_password", required=True,
+    parser.add_argument("--dev_portal_password", default="holo1234",
                         help="The password for the HoloLens Device Portal")
     parser.add_argument("--workspace_path", required=True,
                         help="Path to workspace folder used for downloading "
