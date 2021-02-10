@@ -18,6 +18,7 @@ using namespace std;
 using namespace winrt::Windows::Storage;
 using namespace winrt::Windows::Media::SpeechRecognition;
 using namespace winrt::Windows::Media::SpeechSynthesis;
+using namespace winrt::Windows::ApplicationModel::Core;
 
 enum class ButtonID
 {
@@ -94,39 +95,31 @@ AppMain::AppMain() :
 			m_mixedReality.EnableEyeTracking();
 		}
 	}
-
-	//m_speechSynthesizer = std::make_shared<SpeechSynthesizer>();
-
 	InitializeSpeechRecognizer();
 
 }
 
-//winrt::Windows::Foundation::IAsyncAction AppMain::SaySentence(winrt::hstring sentence)
+//void AppMain::OnSpeechResultGenerated(
+//	winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionSession sender,
+//	winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionResultGeneratedEventArgs args)
 //{
-//	auto speechSynthesisStream = co_await m_speechSynthesizer->SynthesizeTextToStreamAsync(sentence);
+//	if (args.Result().Text() == L"start")
+//	{
+//		m_hethateyeStream.Clear();
+//		m_hethatStreamVis.Update(m_hethateyeStream);
+//		SetDateTimePath();
+//		StartRecordingAsync();
+//	}
+//	else if (args.Result().Text() == L"finish")
+//	{
+//		StopRecording();
+//	}
+//	else
+//	{
+//		OutputDebugStringW(L"Could not understand speech command.\n");
+//	}
+//
 //}
-
-
-void AppMain::OnSpeechResultGenerated(
-	winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionSession sender,
-	winrt::Windows::Media::SpeechRecognition::SpeechContinuousRecognitionResultGeneratedEventArgs args)
-{
-	if ((args.Result().Confidence() == SpeechRecognitionConfidence::High) ||
-		(args.Result().Confidence() == SpeechRecognitionConfidence::Medium))
-	{
-		if (args.Result().Text() == L"start")
-		{
-			m_hethateyeStream.Clear();
-			m_hethatStreamVis.Update(m_hethateyeStream);
-			SetDateTimePath();
-			StartRecordingAsync();
-		}
-		else if (args.Result().Text() == L"finish")
-		{
-			StopRecording();
-		}
-	}
-}
 
 winrt::Windows::Foundation::IAsyncAction AppMain::InitializeSpeechRecognizer()
 {
@@ -149,18 +142,18 @@ winrt::Windows::Foundation::IAsyncAction AppMain::InitializeSpeechRecognizer()
 		return;
 	}
 	OutputDebugStringW(L"Done. Registering event handler...\n");
-	m_speechRecognizerResultEventToken = m_speechRecognizer.ContinuousRecognitionSession().ResultGenerated(
+	m_speechRecognizer.ContinuousRecognitionSession().ResultGenerated(
 		[&](const SpeechContinuousRecognitionSession& sender, SpeechContinuousRecognitionResultGeneratedEventArgs const& args)
 		{
-			auto conf = args.Result().Confidence();
-			auto hs = args.Result().Text();
-
-			OutputDebugStringW(hs.c_str());
-			OutputDebugStringW(L"\n");
-
-			if ((conf == SpeechRecognitionConfidence::High) ||
-				(conf == SpeechRecognitionConfidence::Medium))
+			CoreApplication::MainView().CoreWindow().Dispatcher().RunAsync(winrt::Windows::UI::Core::CoreDispatcherPriority::Normal, 
+				[=]()
 			{
+				auto conf = args.Result().Confidence();
+				auto hs = args.Result().Text();
+
+				OutputDebugStringW(hs.c_str());
+				OutputDebugStringW(L"\n");
+
 				if (hs == L"start")
 				{
 					if (IsVideoFrameProcessorWantedAndReady() && !m_recording)
@@ -175,7 +168,8 @@ winrt::Windows::Foundation::IAsyncAction AppMain::InitializeSpeechRecognizer()
 				{
 					StopRecording();
 				}
-			}
+			});
+
 		});
 
 	OutputDebugStringW(L"Done. Adding the commands...\n");
