@@ -14,6 +14,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import quote
 from process_all import process_all
+import os
 
 
 class RecorderShell(cmd.Cmd):
@@ -41,13 +42,13 @@ class RecorderShell(cmd.Cmd):
         print("Device recordings:")
         self.dev_portal_browser.list_recordings()
         print("Workspace recordings:")
-        list_workspace_recordings(self.w_path)
+        self.dev_portal_browser.list_workspace_recordings()
 
     def do_list_device(self, arg):
         self.dev_portal_browser.list_recordings()
 
     def do_list_workspace(self, arg):
-        list_workspace_recordings(self.w_path)
+        self.dev_portal_browser.list_workspace_recordings()
 
     def do_download(self, arg):
         try:
@@ -90,6 +91,20 @@ class RecorderShell(cmd.Cmd):
         except ValueError:
             print(f"I can't extract {arg}")
 
+    def do_process_all(self, arg):
+        for recording_idx in range(len(self.dev_portal_browser.w_recording_names)):
+            try:
+                if recording_idx is not None:
+                    try:
+                        recording_name = self.dev_portal_browser.w_recording_names[recording_idx]
+                    except IndexError:
+                        print("=> Recording does not exist")
+                    else:
+                        process_all(
+                            Path(recording_name))
+            except ValueError:
+                print(f"I can't extract {recording_idx}")
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -110,9 +125,10 @@ def parse_args():
 
 class DevicePortalBrowser(object):
 
-    def connect(self, address, username, password):
+    def connect(self, address, username, password, w_path):
         print("Connecting to HoloLens Device Portal...")
         self.url = "http://{}".format(address)
+        self.w_path = w_path
         password_manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         password_manager.add_password(None, self.url, username, password)
         handler = urllib.request.HTTPBasicAuthHandler(password_manager)
@@ -230,6 +246,13 @@ class DevicePortalBrowser(object):
 
         self.recording_names.remove(recording_name)
 
+    def list_workspace_recordings(self):
+        self.w_recording_names = sorted([f.path for f in os.scandir(self.w_path) if f.is_dir()])
+        for i, recording_name in enumerate(self.w_recording_names):
+            print("[{: 6d}]  {}".format(i, recording_name[-17:]))
+        if len(self.w_recording_names) == 0:
+            print("=> No recordings found in workspace")
+
 
 def print_help():
     print("Available commands:")
@@ -243,14 +266,7 @@ def print_help():
     print("  delete X:                 Delete recording X from the HoloLens")
     print("  delete_all:               Delete all recordings from the HoloLens")
     print("  process X:                Process recording X ")
-
-
-def list_workspace_recordings(w_path):
-    recording_names = sorted(w_path.glob("*"))
-    for i, recording_name in enumerate(recording_names):
-        print("[{: 6d}]  {}".format(i, recording_name.name))
-    if len(recording_names) == 0:
-        print("=> No recordings found in workspace")
+    print("  process_all:              Process all recordings in the workspace ")
 
 
 def main():
@@ -262,7 +278,8 @@ def main():
     dev_portal_browser = DevicePortalBrowser()
     dev_portal_browser.connect(args.dev_portal_address,
                                args.dev_portal_username,
-                               args.dev_portal_password)
+                               args.dev_portal_password,
+                               w_path)
 
     print()
     print_help()
